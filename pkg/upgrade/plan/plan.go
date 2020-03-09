@@ -129,7 +129,7 @@ func SelectConcurrentNodeNames(plan *upgradeapiv1.Plan, nodeCache corectlv1.Node
 	if err != nil {
 		return nil, err
 	}
-	requirementPlanNotLatest, err := labels.NewRequirement(upgradeapi.LabelPlanName(plan.Name), selection.NotIn, []string{"disabled", plan.Status.LatestHash})
+	requirementPlanNotLatest, err := labels.NewRequirement(upgradeapi.LabelPlanHash(plan.Name), selection.NotIn, []string{"disabled", plan.Status.LatestHash})
 	if err != nil {
 		return nil, err
 	}

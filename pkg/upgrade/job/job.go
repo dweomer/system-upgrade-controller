@@ -7,6 +7,7 @@ import (
 	upgradeapi "github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io"
 	upgradeapiv1 "github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io/v1"
 	upgradectr "github.com/rancher/system-upgrade-controller/pkg/upgrade/container"
+	"github.com/rancher/wrangler/pkg/condition"
 	"github.com/rancher/wrangler/pkg/name"
 	"github.com/sirupsen/logrus"
 	batchv1 "k8s.io/api/batch/v1"
@@ -72,9 +73,13 @@ var (
 	}(defaultImagePullPolicy)
 )
 
+var (
+	ConditionComplete = condition.Cond(batchv1.JobComplete)
+	ConditionFailed   = condition.Cond(batchv1.JobFailed)
+)
+
 func New(plan *upgradeapiv1.Plan, nodeName, controllerName string) *batchv1.Job {
 	hostPathDirectory := corev1.HostPathDirectory
-	labelPlanName := upgradeapi.LabelPlanName(plan.Name)
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name.SafeConcatName("apply", plan.Name, "on", nodeName, "with", plan.Status.LatestHash),
@@ -84,7 +89,8 @@ func New(plan *upgradeapiv1.Plan, nodeName, controllerName string) *batchv1.Job 
 				upgradeapi.LabelNode:       nodeName,
 				upgradeapi.LabelPlan:       plan.Name,
 				upgradeapi.LabelVersion:    plan.Status.LatestVersion,
-				labelPlanName:              plan.Status.LatestHash,
+				upgradeapi.LabelHash:       plan.Status.LatestHash,
+				upgradeapi.LabelCordon:     strconv.FormatBool(plan.Spec.Cordon || plan.Spec.Drain != nil),
 			},
 		},
 		Spec: batchv1.JobSpec{
@@ -96,7 +102,8 @@ func New(plan *upgradeapiv1.Plan, nodeName, controllerName string) *batchv1.Job 
 						upgradeapi.LabelNode:       nodeName,
 						upgradeapi.LabelPlan:       plan.Name,
 						upgradeapi.LabelVersion:    plan.Status.LatestVersion,
-						labelPlanName:              plan.Status.LatestHash,
+						upgradeapi.LabelHash:       plan.Status.LatestHash,
+						upgradeapi.LabelCordon:     strconv.FormatBool(plan.Spec.Cordon || plan.Spec.Drain != nil),
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -253,6 +260,5 @@ func New(plan *upgradeapiv1.Plan, nodeName, controllerName string) *batchv1.Job 
 		}
 	}
 
-	//batchobjv1.SetObjectDefaults_Job(job)
 	return job
 }

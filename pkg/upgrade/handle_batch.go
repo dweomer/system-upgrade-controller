@@ -4,6 +4,7 @@ import (
 	"context"
 
 	upgradeapi "github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io"
+	upgradejob "github.com/rancher/system-upgrade-controller/pkg/upgrade/job"
 	batchv1 "k8s.io/api/batch/v1"
 )
 
@@ -18,21 +19,16 @@ func (ctl *Controller) handleJobs(ctx context.Context) error {
 		}
 		if obj.Labels != nil {
 			if planName, ok := obj.Labels[upgradeapi.LabelPlan]; ok {
-				defer plans.Enqueue(obj.Namespace, planName)
-				if obj.Status.Succeeded == 1 {
-					planLabel := upgradeapi.LabelPlanName(planName)
-					if planHash, ok := obj.Labels[planLabel]; ok {
+				if upgradejob.ConditionComplete.IsTrue(obj) {
+					defer plans.Enqueue(obj.Namespace, planName)
+					if planHash, ok := obj.Labels[upgradeapi.LabelHash]; ok {
 						if nodeName, ok := obj.Labels[upgradeapi.LabelNode]; ok {
 							node, err := nodes.Cache().Get(nodeName)
 							if err != nil {
 								return obj, err
 							}
-							plan, err := plans.Cache().Get(obj.Namespace, planName)
-							if err != nil {
-								return obj, err
-							}
-							node.Labels[planLabel] = planHash
-							if node.Spec.Unschedulable && (plan.Spec.Cordon || plan.Spec.Drain != nil) {
+							node.Labels[upgradeapi.LabelPlanHash(planName)] = planHash
+							if cordon, ok := obj.Labels[upgradeapi.LabelCordon]; ok && cordon == "true" {
 								node.Spec.Unschedulable = false
 							}
 							if node, err = nodes.Update(node); err != nil {
