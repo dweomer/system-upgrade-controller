@@ -15,7 +15,6 @@ jobs:
   # GitHub Actions so we can reference them when we create the GitHub release.
   build-test:
     runs-on: ubuntu-latest
-    container: rancher/dapper:v0.6.0
     permissions:
       contents: read
     strategy:
@@ -23,8 +22,10 @@ jobs:
         os: [linux]
         arch: [amd64, arm64, arm]
     steps:
-      - name: Add Git
-        run: apk add -U git
+      - name: Install Dapper
+        run: |
+          curl -sL https://releases.rancher.com/dapper/v0.6.0/dapper-$(uname -s)-$(uname -m) > /usr/local/bin/dapper
+          chmod +x /usr/local/bin/dapper
 
       - name: Checkout code
         uses: actions/checkout@v4
