@@ -18,6 +18,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/kubernetes/third_party/forked/golang/expansion"
 )
 
 // job events (successful completions) cause the node the job ran on to be labeled as per the plan
@@ -121,6 +122,13 @@ func (ctl *Controller) handleJobs(ctx context.Context) error {
 					jobs.EnqueueAfter(obj.Namespace, obj.Name, delay-interval)
 				} else {
 					ctl.recorder.Eventf(plan, corev1.EventTypeNormal, "JobComplete", "Job completed on Node %s", node.Name)
+					labelVars := map[string]string{
+						"LATEST_VERSION": plan.Status.LatestVersion,
+						"LATEST_HASH":    plan.Status.LatestHash,
+					}
+					for k, v := range plan.Spec.PostCompleteLabels {
+						node.Labels[k] = expansion.Expand(v, expansion.MappingFuncFor(labelVars))
+					}
 					node.Labels[planLabel] = planHash
 				}
 				// mark the node as schedulable even if the delay has not elapsed, so that
